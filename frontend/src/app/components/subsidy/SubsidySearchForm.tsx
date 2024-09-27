@@ -20,7 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import SubsidyList from './SubsidyList';
+import { getSubsidyDetail } from '@/utils/api-client';
+import { SubsidyDetail } from '@/utils/types';
 
 interface SubsidyInfo {
   id: string;
@@ -44,21 +45,21 @@ interface ApiResponse {
 }
 
 interface SubsidySearchParams {
-    keyword: string;
-    sort: string;
-    order: string;
-    acceptance: string;
-    use_purpose: string;
-    industry: string;
-    target_number_of_employees: string;
-    target_area_search: string;
-  }
+  keyword: string;
+  sort: string;
+  order: string;
+  acceptance: string;
+  use_purpose: string;
+  industry: string;
+  target_number_of_employees: string;
+  target_area_search: string;
+}
 
 interface SubsidySearchFormProps {
-    onSearch: (params: SubsidySearchParams) => Promise<void>;
-  }
-  
-  const SubsidySearchForm: React.FC<SubsidySearchFormProps> = ({ onSearch }) => {
+  onSearch: (params: SubsidySearchParams) => Promise<void>;
+}
+
+const SubsidySearchForm: React.FC<SubsidySearchFormProps> = ({ onSearch }) => {
   const [keyword, setKeyword] = useState('');
   const [sort, setSort] = useState('created_date');
   const [order, setOrder] = useState('DESC');
@@ -71,6 +72,12 @@ interface SubsidySearchFormProps {
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [animateTitle, setAnimateTitle] = useState(false);
+  
+  // 詳細モーダル用の状態
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [selectedSubsidyDetail, setSelectedSubsidyDetail] = useState<SubsidyDetail | null>(null);
+  const [isDetailLoading, setIsDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   useEffect(() => {
     const titleAnimation = setInterval(() => {
@@ -121,6 +128,40 @@ interface SubsidySearchFormProps {
     }
   };
 
+  const handleViewDetails = async (id: string) => {
+    setIsDetailLoading(true);
+    setDetailError(null);
+    try {
+      const response = await fetch(`/api/subsidies?id=${id}&timestamp=${Date.now()}`, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const detail = await response.json();
+      console.log('Fetched detail in component:', detail);
+      setSelectedSubsidyDetail(detail.result[0]);
+      setDetailModalOpen(true);
+    } catch (err) {
+      setDetailError(`詳細情報の取得に失敗しました: ${err instanceof Error ? err.message : String(err)}`);
+      console.error('Error fetching detail:', err);
+    } finally {
+      setIsDetailLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    if (selectedSubsidyDetail) {
+      console.log('Selected subsidy detail updated:', selectedSubsidyDetail);
+    }
+  }, [selectedSubsidyDetail]);
+
   const usePurposeOptions = [
     "新たな事業を行いたい",
     "販路拡大・海外展開をしたい",
@@ -151,7 +192,7 @@ interface SubsidySearchFormProps {
 
   return (
     <>
-      <div className="p-6 bg-gradient-to-r from-gray-800 via-gray-700 to-gray-600 rounded-lg shadow-lg max-w-4xl mx-auto text-white">
+      <div className="bg-gray-900 text-white p-6 w-full">
         <h2 className={`text-4xl font-bold mb-6 text-center transition-all duration-500 ${animateTitle ? 'scale-110 text-yellow-300' : 'scale-100 text-white'}`}>
           🌟 補助金検索 🌟
         </h2>
@@ -178,7 +219,7 @@ interface SubsidySearchFormProps {
                 <SelectTrigger id="sort" className="bg-white/20 text-white">
                   <SelectValue placeholder="ソート項目を選択" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-gray-800 text-white">
                   <SelectItem value="created_date">作成日時</SelectItem>
                   <SelectItem value="acceptance_start_datetime">募集開始日時</SelectItem>
                   <SelectItem value="acceptance_end_datetime">募集終了日時</SelectItem>
@@ -191,7 +232,7 @@ interface SubsidySearchFormProps {
                 <SelectTrigger id="order" className="bg-white/20 text-white">
                   <SelectValue placeholder="ソート順を選択" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-gray-800 text-white">
                   <SelectItem value="DESC">降順</SelectItem>
                   <SelectItem value="ASC">昇順</SelectItem>
                 </SelectContent>
@@ -205,7 +246,7 @@ interface SubsidySearchFormProps {
               <SelectTrigger id="acceptance" className="bg-white/20 text-white">
                 <SelectValue placeholder="絞込みを選択" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-gray-800 text-white">
                 <SelectItem value="1">要</SelectItem>
                 <SelectItem value="0">否</SelectItem>
               </SelectContent>
@@ -214,7 +255,7 @@ interface SubsidySearchFormProps {
 
           <div className="space-y-2">
             <Label className="text-xl">利用目的</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
               {usePurposeOptions.map((purpose) => (
                 <div key={purpose} className="flex items-center space-x-2">
                   <Checkbox
@@ -227,7 +268,7 @@ interface SubsidySearchFormProps {
                         setUsePurpose(usePurpose.filter(p => p !== purpose));
                       }
                     }}
-                    className="bg-white/20"
+                    className="border-gray-600"
                   />
                   <Label htmlFor={`purpose-${purpose}`} className="text-sm">{purpose}</Label>
                 </div>
@@ -241,7 +282,7 @@ interface SubsidySearchFormProps {
               <SelectTrigger id="target_number_of_employees" className="bg-white/20 text-white">
                 <SelectValue placeholder="従業員数を選択" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-gray-800 text-white">
                 <SelectItem value="従業員の制約なし">制約なし</SelectItem>
                 <SelectItem value="5名以下">5名以下</SelectItem>
                 <SelectItem value="20名以下">20名以下</SelectItem>
@@ -260,7 +301,7 @@ interface SubsidySearchFormProps {
               <SelectTrigger id="target_area_search" className="bg-white/20 text-white">
                 <SelectValue placeholder="地域を選択" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-gray-800 text-white">
                 <SelectItem value="全国">全国</SelectItem>
                 <SelectItem value="北海道地方">北海道地方</SelectItem>
                 <SelectItem value="東北地方">東北地方</SelectItem>
@@ -287,6 +328,7 @@ interface SubsidySearchFormProps {
         </form>
       </div>
 
+      {/* 検索結果モーダル */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
         <DialogContent className="bg-gray-800 text-white max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -305,11 +347,14 @@ interface SubsidySearchFormProps {
                 >
                   <h4 className="font-bold text-xl text-yellow-400">{subsidy.title}</h4>
                   <p className="text-gray-400 mt-2">対象地域: {subsidy.target_area_search}</p>
-                  <p className="text-gray-400">補助金上限: {subsidy.subsidy_max_limit.toLocaleString()}円</p>
+                  <p className="text-gray-400">補助金上限: {subsidy.subsidy_max_limit ? subsidy.subsidy_max_limit.toLocaleString() : '情報なし'}円</p>
                   <p className="text-gray-400">募集期間: {new Date(subsidy.acceptance_start_datetime).toLocaleDateString()} ～ {new Date(subsidy.acceptance_end_datetime).toLocaleDateString()}</p>
                   <p className="text-gray-400">従業員数: {subsidy.target_number_of_employees}</p>
                   <div className="mt-4 flex justify-end">
-                    <Button className="bg-blue-500 hover:bg-blue-400 text-white font-bold py-2 px-4 rounded-full">
+                    <Button 
+                      onClick={() => handleViewDetails(subsidy.id)}
+                      className="bg-blue-500 hover:bg-blue-400 text-white font-bold py-2 px-4 rounded-full"
+                    >
                       詳細を見る
                     </Button>
                   </div>
@@ -326,6 +371,192 @@ interface SubsidySearchFormProps {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* 詳細モーダル */}
+      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+  <DialogContent className="bg-gray-900 text-white max-w-4xl max-h-[80vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle className="text-2xl font-bold text-center">🔍 補助金詳細 🔍</DialogTitle>
+      <DialogDescription className="text-center text-gray-400">
+        選択された補助金の詳細情報です。
+      </DialogDescription>
+    </DialogHeader>
+    {isDetailLoading ? (
+      <p className="text-center">読み込み中...</p>
+    ) : detailError ? (
+      <p className="text-center text-red-500">{detailError}</p>
+    ) : selectedSubsidyDetail ? (
+      <div className="space-y-4 mt-4">
+        <h3 className="text-2xl font-semibold text-yellow-400">{selectedSubsidyDetail.title}</h3>
+        
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <p className="text-lg font-medium text-green-400">キャッチコピー</p>
+          <p>{selectedSubsidyDetail.subsidy_catch_phrase}</p>
+        </div>
+        
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <p className="text-lg font-medium text-green-400">概要</p>
+          <div dangerouslySetInnerHTML={{ __html: selectedSubsidyDetail.detail }} className="prose prose-invert max-w-none" />
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="text-lg font-medium text-green-400">利用目的</p>
+            <p>{Array.isArray(selectedSubsidyDetail.use_purpose) ? selectedSubsidyDetail.use_purpose.join(', ') : selectedSubsidyDetail.use_purpose}</p>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="text-lg font-medium text-green-400">対象業種</p>
+            <p>{selectedSubsidyDetail.industry}</p>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="text-lg font-medium text-green-400">補助対象地域</p>
+            <p>{selectedSubsidyDetail.target_area_search}</p>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="text-lg font-medium text-green-400">補助対象地域詳細</p>
+            <p>{selectedSubsidyDetail.target_area_detail || '詳細情報なし'}</p>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="text-lg font-medium text-green-400">従業員数</p>
+            <p>{selectedSubsidyDetail.target_number_of_employees}</p>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="text-lg font-medium text-green-400">補助率</p>
+            <p>{selectedSubsidyDetail.subsidy_rate}</p>
+          </div>
+        </div>
+        
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <p className="text-lg font-medium text-green-400">補助金上限</p>
+          <p>{selectedSubsidyDetail.subsidy_max_limit.toLocaleString()}円</p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="text-lg font-medium text-green-400">募集開始</p>
+            <p>{new Date(selectedSubsidyDetail.acceptance_start_datetime).toLocaleString()}</p>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="text-lg font-medium text-green-400">募集終了</p>
+            <p>{new Date(selectedSubsidyDetail.acceptance_end_datetime).toLocaleString()}</p>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="text-lg font-medium text-green-400">事業終了期限</p>
+            <p>{new Date(selectedSubsidyDetail.project_end_deadline).toLocaleString()}</p>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="text-lg font-medium text-green-400">申請受付状況</p>
+            <p>{selectedSubsidyDetail.request_reception_presence}</p>
+          </div>
+          
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p className="text-lg font-medium text-green-400">複数回申請</p>
+            <p>{selectedSubsidyDetail.is_enable_multiple_request ? '可能' : '不可'}</p>
+          </div>
+        </div>
+        
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <p className="text-lg font-medium text-green-400">詳細ページURL</p>
+          <a 
+            href={selectedSubsidyDetail.front_subsidy_detail_page_url} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-blue-400 hover:underline"
+          >
+            {selectedSubsidyDetail.front_subsidy_detail_page_url}
+          </a>
+        </div>
+        
+        {/* 申請ガイドライン */}
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <p className="text-lg font-medium text-green-400 mb-2">申請ガイドライン</p>
+          {selectedSubsidyDetail.application_guidelines && selectedSubsidyDetail.application_guidelines.length > 0 ? (
+            <ul className="list-disc list-inside">
+              {selectedSubsidyDetail.application_guidelines.map((guideline, index) => (
+                <li key={index}>
+                  <a 
+                    href={`data:application/pdf;base64,${guideline.data}`} 
+                    download={guideline.name}
+                    className="text-blue-400 hover:underline"
+                  >
+                    {guideline.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>申請ガイドラインはありません</p>
+          )}
+        </div>
+        
+        {/* 補助金概要 */}
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <p className="text-lg font-medium text-green-400 mb-2">補助金概要</p>
+          {selectedSubsidyDetail.outline_of_grant && selectedSubsidyDetail.outline_of_grant.length > 0 ? (
+            <ul className="list-disc list-inside">
+              {selectedSubsidyDetail.outline_of_grant.map((outline, index) => (
+                <li key={index}>
+                  <a 
+                    href={`data:application/pdf;base64,${outline.data}`} 
+                    download={outline.name}
+                    className="text-blue-400 hover:underline"
+                  >
+                    {outline.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>補助金概要はありません</p>
+          )}
+        </div>
+        
+        {/* 申請様式 */}
+        <div className="bg-gray-800 p-4 rounded-lg">
+          <p className="text-lg font-medium text-green-400 mb-2">申請様式</p>
+          {selectedSubsidyDetail.application_form && selectedSubsidyDetail.application_form.length > 0 ? (
+            <ul className="list-disc list-inside">
+              {selectedSubsidyDetail.application_form.map((form, index) => (
+                <li key={index}>
+                  <a 
+                    href={`data:application/pdf;base64,${form.data}`} 
+                    download={form.name}
+                    className="text-blue-400 hover:underline"
+                  >
+                    {form.name}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>申請様式はありません</p>
+          )}
+        </div>
+      </div>
+    ) : (
+      <p className="text-center text-gray-400">詳細情報がありません。</p>
+    )}
+    <div className="mt-6 flex justify-center">
+      <Button onClick={() => setDetailModalOpen(false)} className="bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-2 px-4 rounded-full">
+        閉じる
+      </Button>
+    </div>
+  </DialogContent>
+</Dialog>
     </>
   );
 };

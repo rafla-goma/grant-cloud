@@ -9,11 +9,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const { id, ...queryParams } = req.query;
 
+      // キャッシュを無効化するためのヘッダーを設定
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+
       if (id) {
         // 個別の補助金詳細を取得
         const detailResponse = await axios.get(`${API_BASE_URL}/subsidies/id/${id}`, {
           headers: {
             'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
           },
         });
         console.log('API Response (Detail):', detailResponse.data);
@@ -29,7 +35,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         use_purpose: queryParams.use_purpose,
         industry: '製造業', // 固定値として設定
         target_number_of_employees: queryParams.target_number_of_employees,
-        target_area_search: queryParams.target_area_search
+        target_area_search: queryParams.target_area_search,
+        timestamp: Date.now(), // キャッシュバスターとしてタイムスタンプを追加
       };
 
       // 空の値を持つパラメータを除外
@@ -46,6 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         params: cleanParams,
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
         },
       });
 
