@@ -27,8 +27,6 @@ const SubsidyList: React.FC<SubsidyListProps> = ({ subsidies }) => {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold text-center text-white mb-4">🎉 補助金発見！ 🎉</h2>
-      <p className="text-center text-gray-300 mb-6">あなたにピッタリの補助金が見つかりました！</p>
       {subsidies.map((subsidy) => (
         <div key={subsidy.id} className="bg-gray-700 p-4 rounded-lg shadow-lg border border-yellow-500">
           <h3 className="text-xl font-bold text-white mb-2">{subsidy.subsidy_name}</h3>
